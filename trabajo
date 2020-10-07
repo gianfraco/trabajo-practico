@@ -1,0 +1,68 @@
+provider "aws" {
+  profile = "default"
+  region  = "us-east-1"
+  version = "3.6"
+}
+
+resource "aws_instance" "example" {
+  ami                    = "ami-0817d428a6fb68645"
+  instance_type          = "t2.micro"
+  key_name               = "trabajopractico"
+  vpc_security_group_ids = [aws_security_group.securitygroup.id, ]
+  subnet_id     = aws_subnet.subnet-trabajo.id
+  connection {
+    type        = "ssh"
+    user        = "ubuntu"
+    private_key = file("/home/ubuntu/learn-terraform-aws-instance/hola")
+    host        = self.public_ip
+  }
+
+  provisioner "remote-exec" {
+    inline = ["sudo apt-get update -y",
+      "sudo apt-get install -y ca-certificates wget",
+    "wget https://get.glennr.nl/unifi/install/unifi-5.13.32.sh", ]
+    on_failure = continue
+  }
+}
+
+resource "aws_security_group" "securitygroup" {
+  name        = "securitygroup"
+  description = "hola"
+  vpc_id      = aws_vpc.vpc-trabajo.id
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_vpc" "vpc-trabajo" {
+  cidr_block           = "172.16.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+}
+
+resource "aws_subnet" "subnet-trabajo" {
+  vpc_id                  = aws_vpc.vpc-trabajo.id
+  cidr_block              = "172.16.1.0/24"
+  map_public_ip_on_launch = "true"
+}
+resource "aws_internet_gateway" "gw" {
+  vpc_id = aws_vpc.vpc-trabajo.id
+}
+
+resource "aws_default_route_table" "rt" {
+  default_route_table_id = aws_vpc.vpc-trabajo.default_route_table_id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.gw.id
+  }
+}
